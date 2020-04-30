@@ -1,10 +1,17 @@
 import {
-  ImportedVesselSchedule, StoredVesselSchedule, MergeAction,
+  ImportedVesselSchedule, StoredVesselSchedule, MergeAction, MergeActionType, StoredPortCall, ImportedPortCall,
 } from './data-types';
+// import fs from 'fs'
+// const PATH = process.cwd() + '/tmp'
 
 import { loadAllFixtures } from './_tests_/fixtures';
 import * as referenceImplementation from './reference-implementation'
 
+const compareCalls = (importedCall: any, storedCall: any): Boolean => {
+  const fieldsToCompare = ['portId', 'portName', 'arrival', 'departure']
+
+  return fieldsToCompare.every(f => JSON.stringify(importedCall[f]) === JSON.stringify(storedCall[f]))
+}
 
 const fixtures = loadAllFixtures()
 /**
@@ -21,6 +28,8 @@ export const mergeVesselSchedules = async (importedVesselSchedule: ImportedVesse
     // It is only for Portchain's internal use and not available to candidates.
     return await referenceImplementation.mergeVesselSchedules(importedVesselSchedule, storedVesselSchedule)
   } else {
+    // console.info('importedVesselSchedule', importedVesselSchedule)
+    // console.info('storedVesselSchedule', storedVesselSchedule)
     // *********************************************************************** //
     //                                                                         //
     // This is a DUMMY implementation that returns results from the test       //
@@ -30,15 +39,47 @@ export const mergeVesselSchedules = async (importedVesselSchedule: ImportedVesse
     // still pass the tests and be able to work with the import API.           //
     //                                                                         //
     // *********************************************************************** //
-    const matchingFixture = fixtures.find(f => {
-      const importedVesselScheduleMatch = JSON.stringify(importedVesselSchedule) === JSON.stringify(f.importedVesselSchedule)
-      const storedVesselScheduleMatch = JSON.stringify(storedVesselSchedule) === JSON.stringify(f.storedVesselSchedule)
-      return importedVesselScheduleMatch && storedVesselScheduleMatch
-    })
-    if(matchingFixture) {
-      return matchingFixture.expectedMergeActions
-    } else {
-      return []
+    if (importedVesselSchedule.vessel.imo !== storedVesselSchedule.vessel.imo) return []
+
+    const mergeActions: MergeAction[] = []
+    const storedPortCalls: StoredPortCall[] = storedVesselSchedule.portCalls
+    const importedPortCalls: ImportedPortCall[] = importedVesselSchedule.portCalls
+
+    if (!storedPortCalls.length && importedPortCalls.length) {
+      return importedVesselSchedule.portCalls.map(importedPortCall => ({
+        action: MergeActionType.INSERT,
+        importedPortCall,
+        storedPortCall: null
+      }))
     }
+
+    if (storedPortCalls.length === 1 && importedPortCalls.length === 1) {
+      return [{
+        action: MergeActionType.UPDATE,
+        importedPortCall: importedPortCalls[0],
+        storedPortCall: storedPortCalls[0],
+      }]
+    }
+
+    if (storedPortCalls.length === importedPortCalls.length) {
+      const matches: Boolean[] = []
+
+      importedPortCalls.forEach((importedPortCall, index) => {
+        const match = compareCalls(importedPortCall, storedPortCalls[index])
+        matches[index] = match
+
+        if (match && !matches[index - 1] && matches[index - 2]) {
+          mergeActions.push({
+            action: MergeActionType.UPDATE,
+            importedPortCall: importedPortCalls[index - 1],
+            storedPortCall: storedPortCalls[index - 1],
+          })
+        }
+      })
+
+      return mergeActions
+    }
+
+    return mergeActions
   }
 };
