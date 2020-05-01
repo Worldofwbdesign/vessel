@@ -1,16 +1,26 @@
 import {
   ImportedVesselSchedule, StoredVesselSchedule, MergeAction, MergeActionType, StoredPortCall, ImportedPortCall,
 } from './data-types';
-// import fs from 'fs'
-// const PATH = process.cwd() + '/tmp'
+import moment = require('moment');
 
 import { loadAllFixtures } from './_tests_/fixtures';
 import * as referenceImplementation from './reference-implementation'
+
+const MAX_DELAY_HOURS = 24 * 3
 
 const compareCalls = (importedCall: any, storedCall: any): Boolean => {
   const fieldsToCompare = ['portId', 'portName', 'arrival', 'departure']
 
   return fieldsToCompare.every(f => JSON.stringify(importedCall[f]) === JSON.stringify(storedCall[f]))
+}
+
+const softCompareCalls = (importedCall: any, storedCall: any): Boolean => {
+  if (importedCall.portId !== storedCall.portId) return false
+
+  const arrivalDiff = storedCall.arrival.diff(importedCall.departure)
+  const arrivalDiffHours = moment.duration(arrivalDiff).hours()
+  return Math.abs(arrivalDiffHours) < MAX_DELAY_HOURS
+  // return fieldsToCompare.every(f => JSON.stringify(importedCall[f]) === JSON.stringify(storedCall[f]))
 }
 
 const fixtures = loadAllFixtures()
@@ -45,6 +55,7 @@ export const mergeVesselSchedules = async (importedVesselSchedule: ImportedVesse
     const storedPortCalls: StoredPortCall[] = storedVesselSchedule.portCalls
     const importedPortCalls: ImportedPortCall[] = importedVesselSchedule.portCalls
 
+    // Insert all importedPortCalls if storedPortCalls are empty
     if (!storedPortCalls.length && importedPortCalls.length) {
       return importedVesselSchedule.portCalls.map(importedPortCall => ({
         action: MergeActionType.INSERT,
@@ -53,31 +64,76 @@ export const mergeVesselSchedules = async (importedVesselSchedule: ImportedVesse
       }))
     }
 
-    if (storedPortCalls.length === 1 && importedPortCalls.length === 1) {
-      return [{
-        action: MergeActionType.UPDATE,
-        importedPortCall: importedPortCalls[0],
-        storedPortCall: storedPortCalls[0],
-      }]
+    // find first match index in stored calls
+    let storedIndex: number = storedPortCalls.findIndex(pCall => {
+      return softCompareCalls(importedPortCalls[0], pCall)
+    })
+      
+      // delete all stored call indexes less then first match index
+    for (let index = 1; index < storedIndex; index++) {
+      mergeActions.push({
+          action: MergeActionType.DELETE,
+        importedPortCall: null,
+        storedPortCall: storedPortCalls[index],
+      })
     }
 
-    if (storedPortCalls.length === importedPortCalls.length) {
-      const matches: Boolean[] = []
+    // Update first matched call if it doesn't fully match
+    if (!compareCalls(importedPortCalls[0], storedPortCalls[storedIndex])) {
+      mergeActions.push({
+        action: MergeActionType.UPDATE,
+        importedPortCall: importedPortCalls[0],
+        storedPortCall: storedPortCalls[storedIndex],
+      })
+    }
+    storedIndex++
 
-      importedPortCalls.forEach((importedPortCall, index) => {
-        const match = compareCalls(importedPortCall, storedPortCalls[index])
-        matches[index] = match
-
-        if (match && !matches[index - 1] && matches[index - 2]) {
+    let importedIndex: number = 1
+    while (importedIndex < importedPortCalls.length) {
+      // check full and soft matching
+      let match = compareCalls(importedPortCalls[importedIndex], storedPortCalls[storedIndex])
+      if (!match) {
+        match = softCompareCalls(importedPortCalls[importedIndex], storedPortCalls[storedIndex])
+        if (match) {
           mergeActions.push({
             action: MergeActionType.UPDATE,
-            importedPortCall: importedPortCalls[index - 1],
-            storedPortCall: storedPortCalls[index - 1],
+            importedPortCall: importedPortCalls[importedIndex],
+            storedPortCall: storedPortCalls[storedIndex],
           })
         }
-      })
+      }
 
-      return mergeActions
+      if (match) {
+        importedIndex++
+        storedIndex++
+      } else {
+        mergeActions.push({
+          action: MergeActionType.DELETE,
+          importedPortCall: null,
+          storedPortCall: storedPortCalls[storedIndex],
+        })
+        storedIndex++
+      }
+    }
+
+    // Delete all portCalls left in storedPortCalls
+    while (storedIndex < storedPortCalls.length) {
+      mergeActions.push({
+        action: MergeActionType.DELETE,
+        importedPortCall: null,
+        storedPortCall: storedPortCalls[storedIndex],
+      })
+      storedIndex++
+    }
+
+    // Insert all portCalls left in importedPortCalls
+    while (importedIndex < importedPortCalls.length) {
+      mergeActions.push({
+        action: MergeActionType.INSERT,
+        importedPortCall: importedPortCalls[importedIndex],
+        storedPortCall: null,
+      })
+      importedIndex++
     }
 
     return mergeActions
