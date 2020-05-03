@@ -38,21 +38,21 @@ export const fetchAvailableVessels = async ():Promise<Vessel[]> => {
   }
 }
 
-const fetchVesselScheduleSnapshot = async (vessel:Vessel, cursor:Moment):Promise<PortCall[]> => {
+const fetchVesselScheduleSnapshot = async (vessel:Vessel, cursor:Moment):Promise<any[]> => {
   try {
     const response:any = await fetch(`${PORTCHAIN_VESSEL_SCHEDULES_API_URL}/vessel-schedules/${vessel.imo}?cursor=${cursor.format(EXPECTED_CURSOR_FORMAT_IN_API)}`, {
       method: 'get',
       headers: { 'Accept': 'application/json' }
     })
-    let portCallsFromAPI:PortCallFromAPI[] = await response.json()
+    let portCallsFromAPI:any[] = await response.json()
     return portCallsFromAPI.map(portCallFromAPI => {
-      return new PortCall({
+      return {
         arrival: moment(portCallFromAPI.arrival),
         departure: moment(portCallFromAPI.departure),
         portId: portCallFromAPI.port.id,
         portName: portCallFromAPI.port.name,
         vessel
-      })
+      }
     })
   } catch(e) {
     if(e.responseBody) {

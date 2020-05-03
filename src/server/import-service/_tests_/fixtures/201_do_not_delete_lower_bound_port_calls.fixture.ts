@@ -55,15 +55,7 @@ const importedVesselSchedule: ImportedVesselSchedule = {
   }],
 };
 
-const expectedMergeActions: MergeAction[] = [{
-  action: MergeActionType.UPDATE,
-  importedPortCall: importedVesselSchedule.portCalls[0],
-  storedPortCall: storedVesselSchedule.portCalls[1],
-}, {
-  action: MergeActionType.UPDATE,
-  importedPortCall: importedVesselSchedule.portCalls[1],
-  storedPortCall: storedVesselSchedule.portCalls[2],
-}];
+const expectedMergeActions: MergeAction[] = [];
 
 export {
   importedVesselSchedule,

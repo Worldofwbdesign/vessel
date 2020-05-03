@@ -8,22 +8,21 @@ import * as referenceImplementation from './reference-implementation'
 
 const MAX_DELAY_HOURS = 24 * 3
 
-const compareCalls = (importedCall: any, storedCall: any): Boolean => {
+const compareCalls = (importedCall: any = {}, storedCall: any = {}): Boolean => {
   const fieldsToCompare = ['portId', 'portName', 'arrival', 'departure']
 
   return fieldsToCompare.every(f => JSON.stringify(importedCall[f]) === JSON.stringify(storedCall[f]))
 }
 
 const softCompareCalls = (importedCall: any, storedCall: any): Boolean => {
-  if (importedCall.portId !== storedCall.portId) return false
+  if (!importedCall || !storedCall || importedCall.portId !== storedCall.portId) return false
 
-  const arrivalDiff = storedCall.arrival.diff(importedCall.departure)
+  const storedArrival = moment.isMoment(storedCall.arrival) ? storedCall.arrival : moment(storedCall.arrival)
+  const arrivalDiff = storedArrival.diff(importedCall.departure)
   const arrivalDiffHours = moment.duration(arrivalDiff).hours()
   return Math.abs(arrivalDiffHours) < MAX_DELAY_HOURS
-  // return fieldsToCompare.every(f => JSON.stringify(importedCall[f]) === JSON.stringify(storedCall[f]))
 }
 
-const fixtures = loadAllFixtures()
 /**
  * Outputs a list of actions based on 2 inputs: (1) a new vessel schedule and (2) an existing vessel schedule.
  * The possible actions are described in the enum 'MergeActionType'. These are:
@@ -54,9 +53,11 @@ export const mergeVesselSchedules = async (importedVesselSchedule: ImportedVesse
     const storedPortCalls: StoredPortCall[] = storedVesselSchedule.portCalls
     const importedPortCalls: ImportedPortCall[] = importedVesselSchedule.portCalls
 
+    if (!importedPortCalls || !importedPortCalls.length) return mergeActions
+
     // Insert all importedPortCalls if storedPortCalls are empty
     if (!storedPortCalls.length && importedPortCalls.length) {
-      return importedVesselSchedule.portCalls.map(importedPortCall => ({
+      return importedPortCalls.map(importedPortCall => ({
         action: MergeActionType.INSERT,
         importedPortCall,
         storedPortCall: null
@@ -88,7 +89,7 @@ export const mergeVesselSchedules = async (importedVesselSchedule: ImportedVesse
     storedIndex++
 
     let importedIndex: number = 1
-    while (importedIndex < importedPortCalls.length) {
+    while (importedIndex < importedPortCalls.length && storedIndex < storedPortCalls.length) {
       // check full and soft matching
       let match = compareCalls(importedPortCalls[importedIndex], storedPortCalls[storedIndex])
       if (!match) {

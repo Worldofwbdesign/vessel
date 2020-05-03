@@ -1,6 +1,6 @@
 
 import express from 'express';
-import { Vessel } from './models';
+import { Vessel, PortCall } from './models';
 import { importVesselsIntoLocalDatabase, safeImportAllSchedules } from './import-service';
 import { PORT } from './conf';
 var path = require('path');
@@ -28,8 +28,19 @@ app.get('/api/vessels', async (req, res) => {
 })
 
 app.get('/api/vessel-schedule/:vesselImo', async (req, res) => {
-  // TODO: you need to implement this
-  res.send([])
+  const { vesselImo } = req.params
+
+  if (!vesselImo) throw Error('Provide vesselImo!')
+
+  const vesselSchedule = await PortCall.findAll({
+    where: {
+      vessel_imo: vesselImo
+    },
+    include: [{
+        model: Vessel,
+    }],
+  })
+  res.send(vesselSchedule || [])
 })
 
 app.get('/api/port-call-history/:portCallId', async (req, res) => {
