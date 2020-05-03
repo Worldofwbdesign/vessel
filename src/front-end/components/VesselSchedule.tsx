@@ -5,7 +5,7 @@ import moment from 'moment';
 export class VesselSchedule extends React.Component<any, {}> {
   state = {
     schedule: [],
-    loading: true
+    loading: false
   };
 
   componentDidMount() {
@@ -13,6 +13,7 @@ export class VesselSchedule extends React.Component<any, {}> {
   }
 
   fetchSchedule() {
+    this.setState({ loading: true });
     fetch(`/api/vessel-schedule/${this.props.vesselImo}`)
       .then(response => response.json())
       .then(schedule => {
@@ -29,11 +30,11 @@ export class VesselSchedule extends React.Component<any, {}> {
   render() {
     const { schedule, loading } = this.state;
     const { vessel = {} } = schedule[0] || {};
-    console.info('schedule', schedule);
 
     return (
       <div>
         {loading && <h2>Loading</h2>}
+        {!loading && !schedule.length && <h2>No schedules found</h2>}
         {vessel.imo && (
           <h1>
             Vessel Schedule for {vessel.name} ({vessel.imo})

@@ -1,7 +1,8 @@
 import { fetchAvailableVessels, fetchFullVesselSchedule } from "../provider-api"
-import { Vessel, PortCall } from "../models"
+import { Vessel, PortCall, PortCallHistory } from "../models"
 import { Moment }  from 'moment'
 import { mergeVesselSchedules } from "./vessel-schedule-merger"
+import { convertToLogCall } from './util'
 import { MergeActionType, MergeAction } from "./data-types"
 
 
@@ -46,19 +47,21 @@ const importFullVesselSchedule = async (vessel:Vessel) => {
     for(const mergeAction of mergeActions) {
       switch(mergeAction.action) {
         case MergeActionType.INSERT:
-          await PortCall.create({...mergeAction.importedPortCall, vessel_imo: vessel.imo})
-          // TODO: record port call history in DB: create action with original eta/etd and 'cursor value' as the log date
+          const storedCallRes = await PortCall.create({...mergeAction.importedPortCall, vessel_imo: vessel.imo})
+          const storedCall: any = storedCallRes.toJSON()
+          await PortCallHistory.create({ port_call_id: storedCall.id, ...convertToLogCall(storedCall), action_mode: MergeActionType.INSERT })
           break;
         case MergeActionType.DELETE:
-          await PortCall.update({isDeleted: true}, {where: {id: mergeAction.storedPortCall.id}})
-          // TODO: record port call history in DB: update action with deletion and 'cursor value' as the log date
+          const deletedPortCall = mergeAction.storedPortCall
+          await PortCall.update({isDeleted: true}, {where: {id: deletedPortCall.id}})
+          await PortCallHistory.create({ port_call_id: deletedPortCall.id, ...convertToLogCall(deletedPortCall), action_mode: MergeActionType.DELETE, vessel_imo: vessel.imo })
           break;
         case MergeActionType.UPDATE:
           await PortCall.update({
             arrival: mergeAction.importedPortCall.arrival,
             departure: mergeAction.importedPortCall.departure
           }, {where: {id: mergeAction.storedPortCall.id}})
-          // TODO: record port call history in DB: update action with new arrival/departure values and 'cursor value' as the log date
+          await PortCallHistory.create({ port_call_id: mergeAction.storedPortCall.id, ...convertToLogCall(mergeAction.importedPortCall), action_mode: MergeActionType.UPDATE, vessel_imo: vessel.imo })
           break;
       }
     }
