@@ -46,23 +46,52 @@ const importFullVesselSchedule = async (vessel:Vessel) => {
 
     for(const mergeAction of mergeActions) {
       switch(mergeAction.action) {
-        case MergeActionType.INSERT:
+        case MergeActionType.INSERT: {
           const storedCallRes = await PortCall.create({...mergeAction.importedPortCall, vessel_imo: vessel.imo})
           const storedCall: any = storedCallRes.toJSON()
-          await PortCallHistory.create({ port_call_id: storedCall.id, ...convertToLogCall(storedCall), action_mode: MergeActionType.INSERT })
+
+          const historyObject = {
+            ...convertToLogCall(storedCall),
+            cursor,
+            actionMode: mergeAction.action,
+            port_call_id: storedCall.id,
+          }
+          await PortCallHistory.create(historyObject)
           break;
-        case MergeActionType.DELETE:
-          const deletedPortCall = mergeAction.storedPortCall
+        }
+
+        case MergeActionType.DELETE: {
+          const deletedPortCall: any = mergeAction.storedPortCall
           await PortCall.update({isDeleted: true}, {where: {id: deletedPortCall.id}})
-          await PortCallHistory.create({ port_call_id: deletedPortCall.id, ...convertToLogCall(deletedPortCall), action_mode: MergeActionType.DELETE, vessel_imo: vessel.imo })
+
+          const historyObject = {
+            ...convertToLogCall(deletedPortCall.toJSON()),
+            action_mode: MergeActionType.DELETE,
+            cursor,
+            port_call_id: deletedPortCall.id,
+            vessel_imo: vessel.imo
+          }
+          await PortCallHistory.create(historyObject)
           break;
-        case MergeActionType.UPDATE:
+        }
+
+        case MergeActionType.UPDATE: {
+          const importedCall = mergeAction.importedPortCall
           await PortCall.update({
             arrival: mergeAction.importedPortCall.arrival,
             departure: mergeAction.importedPortCall.departure
           }, {where: {id: mergeAction.storedPortCall.id}})
-          await PortCallHistory.create({ port_call_id: mergeAction.storedPortCall.id, ...convertToLogCall(mergeAction.importedPortCall), action_mode: MergeActionType.UPDATE, vessel_imo: vessel.imo })
+
+          const historyObject = {
+            ...convertToLogCall(importedCall),
+            actionMode: mergeAction.action,
+            cursor,
+            port_call_id: mergeAction.storedPortCall.id,
+            vessel_imo: vessel.imo
+          }
+          await PortCallHistory.create(historyObject)
           break;
+        }
       }
     }
     logSummaryOfImportStep(cursor, vessel, importedVesselSchedule, existingPortCalls, mergeActions)

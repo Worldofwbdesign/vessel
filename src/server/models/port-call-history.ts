@@ -14,9 +14,12 @@ export default class PortCallHistory extends Model<PortCallHistory> {
   @Column(DataType.INTEGER)
   id: number;
 
-  @Column(DataType.STRING)
+  @Column(DataType.INTEGER)
   actionMode: string;
  
+  @Column(DataType.DATE)
+  cursor: Moment;
+
   @Column(DataType.DATE)
   arrival: Moment;
 

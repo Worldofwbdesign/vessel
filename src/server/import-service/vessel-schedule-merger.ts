@@ -72,7 +72,7 @@ export const mergeVesselSchedules = async (importedVesselSchedule: ImportedVesse
       // delete all stored call indexes less then first match index
     for (let index = 1; index < storedIndex; index++) {
       mergeActions.push({
-          action: MergeActionType.DELETE,
+        action: MergeActionType.DELETE,
         importedPortCall: null,
         storedPortCall: storedPortCalls[index],
       })
