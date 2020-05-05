@@ -25,7 +25,7 @@ export class VesselSchedule extends React.Component<any, {}> {
       });
   }
 
-  formatDate = date => moment(date).format('YYYY-MM-DD');
+  formatDate = date => moment(date).format('YYYY MMMM DD HH:mm');
 
   render() {
     const { schedule, loading } = this.state;

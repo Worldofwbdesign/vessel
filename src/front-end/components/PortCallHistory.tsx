@@ -27,7 +27,7 @@ export class PortCallHistory extends React.Component<any, {}> {
       });
   }
 
-  formatDate = date => moment(date).format('YYYY-MM-DD');
+  formatDate = date => moment(date).format('YYYY MMMM DD HH:mm');
 
   render() {
     const { loading, history } = this.state;
